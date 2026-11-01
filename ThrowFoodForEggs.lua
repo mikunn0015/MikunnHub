@@ -1,4 +1,4 @@
--- Rayfield UI Script: Professional Automation Hub
+-- Rayfield UI Script: Professional Automation Hub (Direct CrossLine Teleport & Loop)
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
@@ -29,6 +29,7 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local TeleportService = game:GetService("TeleportService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 -- Remote References
 local TrainingStop = Remotes:WaitForChild("Training_Stop")
@@ -59,8 +60,8 @@ local function GetTrainingPart()
    return nil
 end
 
--- Exact Throwing Line Lookup based on your Explorer window (`CrossLine`)
-local function GetThrowPart()
+-- Direct CrossLine Lookup from StarterArea
+local function GetCrossLinePart()
    local starterArea = workspace:FindFirstChild("StarterArea")
    if starterArea then
       local crossLine = starterArea:FindFirstChild("CrossLine")
@@ -76,7 +77,7 @@ local function GetThrowPart()
    return nil
 end
 
--- UI Click Emulation Helper
+-- UI Click Emulation Helper for Training Tap Bonus
 local function ClickTapBonusButton()
    for _, gui in ipairs(PlayerGui:GetChildren()) do
       if gui:IsA("ScreenGui") and gui.Enabled then
@@ -166,7 +167,7 @@ TrainingTab:CreateToggle({
 })
 
 ------------------------------------------------------------------------
--- THROWING TAB
+-- THROWING TAB (Direct CrossLine Teleport & Loop)
 ------------------------------------------------------------------------
 ThrowingTab:CreateSection("Throwing Automation")
 
@@ -180,33 +181,37 @@ ThrowingTab:CreateToggle({
       
       if Value then
          _G.AutoThrowThread = task.spawn(function()
-            local throwPart = GetThrowPart()
-            local char = LocalPlayer.Character
-            local root = char and char:FindFirstChild("HumanoidRootPart")
-            
-            if root and throwPart then
-               root.CFrame = throwPart.CFrame + Vector3.new(0, 3, 0)
-               task.wait(0.4)
-            end
-            
             while _G.AutoThrow do
                pcall(function()
                   local currentChar = LocalPlayer.Character
                   local currentRoot = currentChar and currentChar:FindFirstChild("HumanoidRootPart")
                   local humanoid = currentChar and currentChar:FindFirstChildOfClass("Humanoid")
-                  local currentThrowPart = GetThrowPart()
+                  local crossLine = GetCrossLinePart()
                   
-                  if currentRoot and humanoid and humanoid.Health > 0 then
-                     if currentThrowPart and (currentRoot.Position - currentThrowPart.Position).Magnitude > 12 then
-                        currentRoot.CFrame = currentThrowPart.CFrame + Vector3.new(0, 3, 0)
-                        task.wait(0.2)
+                  if currentRoot and humanoid and humanoid.Health > 0 and crossLine then
+                     -- Teleport right on top of CrossLine with a safe height offset
+                     currentRoot.CFrame = crossLine.CFrame + Vector3.new(0, 3, 0)
+                     task.wait(0.2)
+                     
+                     -- Start throwing sequence
+                     pcall(function() ThrowStart:InvokeServer() end)
+                     task.wait(0.3)
+                     
+                     -- Simulate screen click to clear meter UI / lock throw
+                     local camera = workspace.CurrentCamera
+                     if camera then
+                        local screenCenter = camera.ViewportSize / 2
+                        pcall(function()
+                           VirtualInputManager:SendMouseButtonEvent(screenCenter.X, screenCenter.Y, 0, true, game, 1)
+                           task.wait(0.05)
+                           VirtualInputManager:SendMouseButtonEvent(screenCenter.X, screenCenter.Y, 0, false, game, 1)
+                        end)
                      end
                      
-                     ThrowStart:InvokeServer()
-                     task.wait(0.25)
-                     ThrowResolve:InvokeServer(0.925)
-                     task.wait(0.25)
-                     ThrowComplete:InvokeServer()
+                     task.wait(0.3)
+                     pcall(function() ThrowResolve:InvokeServer(0.95) end)
+                     task.wait(0.3)
+                     pcall(function() ThrowComplete:InvokeServer() end)
                   end
                end)
                task.wait(1.5)
